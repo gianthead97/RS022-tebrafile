@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>981</width>
+    <height>810</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -87,6 +87,9 @@
     </item>
     <item>
      <widget class="QProgressBar" name="uploadProgressBar">
+      <property name="autoFillBackground">
+       <bool>false</bool>
+      </property>
       <property name="value">
        <number>0</number>
       </property>
@@ -98,20 +101,6 @@
        <enum>Qt::Horizontal</enum>
       </property>
      </widget>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="hl2">
-      <item>
-       <widget class="QLineEdit" name="donwloadPath"/>
-      </item>
-      <item>
-       <widget class="QPushButton" name="setFolderButton">
-        <property name="text">
-         <string>Set Folder</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
     </item>
     <item>
      <layout class="QHBoxLayout" name="hl4">
@@ -157,7 +146,15 @@
      </widget>
     </item>
     <item>
-     <widget class="QLineEdit" name="downloadFileInput"/>
+     <layout class="QHBoxLayout" name="hl2">
+      <item>
+       <widget class="QLineEdit" name="downloadFileInput">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
     <item>
      <widget class="QProgressBar" name="downloadProgressBar">
@@ -167,11 +164,48 @@
      </widget>
     </item>
     <item>
-     <widget class="QPushButton" name="downloadButton">
-      <property name="text">
-       <string>Download</string>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="bottomMargin">
+       <number>0</number>
       </property>
-     </widget>
+      <item>
+       <widget class="QPushButton" name="searchButton">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>../icons/search.png</normaloff>../icons/search.png</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>30</width>
+          <height>20</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="downloadButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Download</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="downloadCancel">
+        <property name="text">
+         <string>Cancel</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
     <item>
      <spacer name="verticalSpacer">
@@ -184,10 +218,17 @@
       <property name="sizeHint" stdset="0">
        <size>
         <width>20</width>
-        <height>40</height>
+        <height>20</height>
        </size>
       </property>
      </spacer>
+    </item>
+    <item>
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -196,7 +237,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>981</width>
      <height>22</height>
     </rect>
    </property>

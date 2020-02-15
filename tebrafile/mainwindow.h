@@ -2,6 +2,9 @@
 #define MAINWINDOW_H
 #include "serverconnection.h"
 #include "loader.h"
+#include "listFiles.h"
+#include "search.h"
+#include "inputDialog.h"
 
 #include <iostream>
 
@@ -20,6 +23,9 @@
 #include <QThread>
 #include <QUrl>
 #include <QMutex>
+#include <QDebug>
+#include <QHeaderView>
+#include <QString>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -34,16 +40,15 @@ public:
     ~MainWindow();
     void getFileList();
     static QMutex uploadMutex;
+    static QMutex downloadMutex;
 
+
+    QSharedPointer<QFtp>& getClient();
+    QSharedPointer<Logger> getLogger();
+    Ui::MainWindow* getUI();
+    ServerConnection* getConnection();
 public slots:
-    void addToList(const QUrlInfo& file);
     void initTreeWidget();
-    void restartTreeWidget();
-    void listDone(bool error);
-    void listFiles(const QString& fileName);
-    void cdToFolder(QTreeWidgetItem *widgetItem, int column);
-    void leaveFolder();
-
 
 private slots:
     void on_connectButton_clicked();
@@ -52,25 +57,30 @@ private slots:
     void on_uploadButton_clicked();
     void on_downloadButton_clicked();
     void on_treeWidget_clicked();
-    void on_header_clicked(int logicalIndex);
     void uploadProgressBarSlot(int id, qint64 done, qint64 total);
-    void downloadProgressBarSlot(qint64 done, qint64 total);
+    void downloadProgressBarSlot(int id, qint64 done, qint64 total);
+    void pwdHandler(int replyCode, const QString& detail);
+
+
+    void uploadErrorHandler();
+    void downloadErrorHandler();
+
+    void on_downloadCancel_clicked();
+
+    void on_searchButton_clicked();
 
 private:
     Ui::MainWindow *ui;
-    ServerConnection* serverConn;
-
+    ServerConnection* serverConn = nullptr;
 
     QVector<Loader*> loaders;
-    QHash<int, QPair<qint64, qint64>> uploadData;
-    QHash<int, QPair<qint64, qint64>> downloadData;
-
-    QTreeWidget *fileList;
-    QHash<QString, bool> isDir;
-    QString currentPath;
-
-    QHeaderView *headerView;
 
     QSharedPointer<Logger> _logger;
+    QString path;
+
+    ListFiles *fileList = nullptr;
+
+
+    QSharedPointer<QFtp> client;
 };
 #endif // MAINWINDOW_H

@@ -1,12 +1,8 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-
+#include "searchdialog.h"
 
 #include <iostream>
-
-#include <QTreeView>
-#include <QHeaderView>
-#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -14,167 +10,65 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     _logger = QSharedPointer<Logger>(new Logger(ui->textEdit));
-    fileList = ui->treeWidget;
-    initTreeWidget();
-    currentPath.clear();
+
+    fileList = new ListFiles(ui->treeWidget);
+    //searchList = new ListFiles(ui->searchWidget);
 }
 
 MainWindow::~MainWindow()
 {
+    delete fileList;
     delete ui;
 }
 
-void MainWindow::initTreeWidget()
+QSharedPointer<QFtp>& MainWindow::getClient()
 {
-    fileList->setEnabled(false);
-    fileList->setRootIsDecorated(true);
-    fileList->header()->setStretchLastSection(true);
-
-    fileList->setColumnCount(5);
-    fileList->setHeaderLabels(QStringList() << "Name"
-                                    << "Size"
-                                    << "Owner"
-                                    << "Group"
-                                    << "Last modified");
-    headerView = fileList->header();
-    headerView->setSectionsClickable(true);
-    headerView->resizeSection(0, 180);
-
-    restartTreeWidget();
-    QObject::connect(headerView, SIGNAL( sectionClicked(int) ), this, SLOT( on_header_clicked(int) ) );
-    QObject::connect(fileList, &QTreeWidget::itemDoubleClicked, this, &MainWindow::cdToFolder);
+    return client;
 }
 
-void MainWindow::restartTreeWidget()
+QSharedPointer<Logger> MainWindow::getLogger()
 {
-    fileList->clear();
-    isDir.clear();
-
-    QTreeWidgetItem *widgetItem = new QTreeWidgetItem();
-    widgetItem->setText(0, "..");
-    fileList->addTopLevelItem(widgetItem);
-
-
-
-    // ctrl+click for multi-select
-    fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-
-    widgetItem->setDisabled(true);
-
+    return _logger;
 }
 
-void MainWindow::on_header_clicked(int logicalIndex)
+Ui::MainWindow* MainWindow::getUI()
 {
-    if(logicalIndex == 0) {
-        headerView->setSortIndicatorShown(true);
-        fileList ->takeTopLevelItem(0);
-        fileList ->sortItems(logicalIndex, headerView->sortIndicatorOrder());
-
-        QTreeWidgetItem *widgetItem = new QTreeWidgetItem();
-        widgetItem->setText(0, "..");
-        fileList->insertTopLevelItem(0, widgetItem);
-    } else {
-        headerView->setSortIndicatorShown(false);
-    }
+   return ui;
 }
 
+ServerConnection* MainWindow::getConnection()
+{
+    return serverConn;
+}
 
 void MainWindow::on_connectButton_clicked()
 {
     serverConn = new ServerConnection(this, QUrl(ui->serverNameField->text()), _logger);
     serverConn->connectToServer();
+    QObject::connect(serverConn, &ServerConnection::connectionEstablished, this, &MainWindow::initTreeWidget);
 }
 
 
+void MainWindow::initTreeWidget()
+{
+    fileList->setServerConn(serverConn->getClient());
+    fileList->listFiles(QString("~/"));
+}
 
 void MainWindow::on_disconnectButton_clicked()
 {
-    if (serverConn->isConnected())
-        serverConn->~ServerConnection();
-    else
+    if (nullptr == serverConn)
         _logger->consoleLog("Not connected.");
-    currentPath.clear();
-    restartTreeWidget();
-}
-
-
-
-void MainWindow::listFiles(const QString& fileName)
-{
-    QObject::connect(serverConn->getClient().get(), &QFtp::listInfo, this, &MainWindow::addToList);
-    QObject::connect(serverConn->getClient().get(), &QFtp::done, this, &MainWindow::listDone);
-    serverConn->getClient()->list(fileName);
-}
-
-void MainWindow::addToList(const QUrlInfo& file)
-{
-    QTreeWidgetItem *widgetItem = new QTreeWidgetItem();
-
-    widgetItem->setText(0, file.name());
-    widgetItem->setText(1, QString::number(file.size()));
-    widgetItem->setText(2, file.owner());
-    widgetItem->setText(3, file.group());
-    widgetItem->setText(4, file.lastModified().toString("dd.MM.yyyy"));
-
-    QIcon* folderIcon = new QIcon("../icons/directory.png");
-    QIcon* fileIcon = new QIcon("../icons/file.png");
-    QIcon* icon(file.isDir() ? folderIcon : fileIcon);
-    widgetItem->setIcon(0, *icon);
-
-    isDir.insert(file.name(), file.isDir());
-
-    fileList->addTopLevelItem(widgetItem);
-
-    // ako je item prvi postavi ga za trenutno selektovani
-    if (!fileList->currentItem()) {
-        fileList->setCurrentItem(fileList->topLevelItem(1));
-        fileList->setEnabled(true);
+    else if (!serverConn->isConnected())
+        _logger->consoleLog("Not connected.");
+    else {
+        _logger->consoleLog("You are disconnected.");
+        serverConn->setLogged(false);
+        fileList->restartTreeWidget();
+        //searchList->restartTreeWidget();
+        fileList->clearPath();
     }
 }
-
-void MainWindow::cdToFolder(QTreeWidgetItem *widgetItem, int column)
-{
-    // ako je korisnik izabrao da ide nazad
-    if(widgetItem == fileList->topLevelItem(0)) {
-        leaveFolder();
-    } else {
-        QString name = widgetItem->text(0);
-        if(isDir.value(name)) {
-            currentPath += '/';
-            currentPath += name;
-
-            restartTreeWidget();
-
-            serverConn->getClient()->cd(name);
-            serverConn->getClient()->list();
-        }
-    }
-    headerView->setSortIndicatorShown(false);
-}
-
-void MainWindow::leaveFolder()
-{
-      restartTreeWidget();
-      currentPath = currentPath.left(currentPath.lastIndexOf('/'));
-      if(currentPath.isEmpty()) {
-          currentPath = "~";
-          serverConn->getClient()->cd("~");
-      } else {
-          serverConn->getClient()->cd(currentPath);
-      }
-      serverConn->getClient()->list();
-      headerView->setSortIndicatorShown(false);
-}
-
-void MainWindow::listDone(bool error)
-{
-    if (error) {
-        std::cerr << "Error: " << qPrintable(serverConn->getClient()->errorString()) << std::endl;
-    }
-}
-
-
 
 void MainWindow::on_openButton_clicked()
 {
@@ -194,12 +88,17 @@ void MainWindow::on_uploadButton_clicked()
     else if (!serverConn->isConnected())
         Logger::showMessageBox("Alert", "You are not connected.", QMessageBox::Critical);
     else {
+        serverConn->getClient()->rawCommand("PWD");
+        QObject::connect(serverConn->getClient().data(), &QFtp::rawCommandReply,
+                             this, &MainWindow::pwdHandler);
+        fileList->getTreeWidget()->setEnabled(false);
         const auto fileNames = ui->uploadFileInput->text().split(";");
         std::for_each(std::begin(fileNames), std::end(fileNames), [&](const auto& fileName){
             auto upload = new Uploader(fileName, serverConn->getClient(), _logger);
             loaders.push_back(upload);
             upload->start();
             QObject::connect(upload, &Loader::signalProgress, this, &MainWindow::uploadProgressBarSlot);
+            QObject::connect(upload, &Loader::uploadError, this, &MainWindow::uploadErrorHandler);
         });
     }
 }
@@ -208,56 +107,47 @@ void MainWindow::on_uploadButton_clicked()
 
 void MainWindow::on_downloadButton_clicked()
 {
+    path = fileList->getPath();
+    if (path.isEmpty())
+        path = "~";
+
+    //negde mora ui->downloadButton->setEnabled(false);
+    ui->downloadCancel->setEnabled(true);
+
 
     if (ui->downloadFileInput->text().trimmed().length() == 0)
-        QMessageBox::critical(this, "Alert", "Files did not selected.");
-    else
-    {
-        QFile* file;
-        fileList->setEnabled(false);
-        ui->downloadButton->setEnabled(false);
-        const auto downloadList = ui->downloadFileInput->text().split(";");
-
-
-        //QString fileName = fileList->currentItem()->text(0);
-
-        QString downloadsFolder = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-
-
-        for(auto fileName : downloadList)
-        {
-            file = new QFile(downloadsFolder + "/" + fileName);
-
-            if (!file->open(QIODevice::WriteOnly)) {
-             QMessageBox::information(this, tr("FTP"),
-                                      tr("Unable to save the file %1: %2.")
-                                      .arg(fileName).arg(file->errorString()));
-             delete file;
-             return;
+        Logger::showMessageBox("Alert", "Files did not selected.", QMessageBox::Critical);
+    else if (!serverConn->isLogged())
+        Logger::showMessageBox("Alert", "You are not logged.", QMessageBox::Critical);
+    else if (!serverConn->isConnected())
+        Logger::showMessageBox("Alert", "You are not connected.", QMessageBox::Critical);
+    else {
+        const auto fileNames = ui->downloadFileInput->text().split(";");
+        std::for_each(std::begin(fileNames), std::end(fileNames), [&](const auto& fileName){
+            auto name = fileName.right(fileName.length() - fileName.lastIndexOf('/'));
+            // qDebug() << name;
+            auto currentPath = fileName.left(fileName.lastIndexOf('/'));
+            // qDebug() << currentPath;
+            if (currentPath == fileName) {
+                currentPath = path + "/";
             }
 
-            serverConn->getClient()->get(fileName, file);
-            QObject::connect(serverConn->getClient().get(), &QFtp::dataTransferProgress,
-                             this, &MainWindow::downloadProgressBarSlot);
-
-        }
-
+            serverConn->getClient()->cd(currentPath);
+            auto download = new Downloader(name, serverConn->getClient(), _logger);
+            loaders.push_back(download);
+            download->start();
+            QObject::connect(download, &Loader::signalProgress, this, &MainWindow::downloadProgressBarSlot);
+            QObject::connect(download, &Loader::downloadError, this, &MainWindow::downloadErrorHandler);
+        });
     }
-}
 
-void MainWindow::downloadProgressBarSlot(qint64 done, qint64 total)
-{
-    ui->downloadProgressBar->setValue(100*done/total);
-    if(done == total){
-        fileList->setEnabled(true);
-        ui->downloadButton->setEnabled(true);
-    }
 }
 
 
 void MainWindow::on_treeWidget_clicked()
 {
-    const auto filenames = fileList->selectedItems();
+    //ui->searchWidget->clearSelection();
+    const auto filenames = fileList->getTreeWidget()->selectedItems();
     QStringList filenamesQ;
 
     //ruzno ali radi
@@ -266,38 +156,128 @@ void MainWindow::on_treeWidget_clicked()
     for(auto filename : filenames)
     {
         temp = filename->text(0);
-        filenamesQ.push_back(temp);
+        if (fileList->isSelectedFile(temp)) {
+            filenamesQ.push_back(temp);
+        }
     }
 
-
     ui->downloadFileInput->setText(filenamesQ.join(';'));
-
 }
 
 QMutex MainWindow::uploadMutex;
 
-void MainWindow::uploadProgressBarSlot(int id, qint64 done, qint64 total)
+void MainWindow::uploadProgressBarSlot([[maybe_unused]]int id, qint64 done, qint64 total)
 {
     uploadMutex.lock();
-    uploadData[id] = qMakePair(done, total);
-    QPair<qint64, qint64> currentProgress = std::accumulate(
-                    std::begin(uploadData),
-                    std::end(uploadData),
-                    qMakePair<qint64, qint64>(0, 0),
-                    [](auto acc, auto elem) {
-                        return qMakePair<qint64, qint64>(acc.first+elem.first, acc.second+elem.second);
-                    });
-    ui->uploadProgressBar->setValue(100*currentProgress.first / currentProgress.second);
-    if (currentProgress.first == currentProgress.second) {
-        fileList->setEnabled(true);
+
+    ui->uploadProgressBar->setValue(static_cast<int>(100* done / total));
+    if (done == total) {
+        ui->uploadProgressBar->setValue(static_cast<int>(100*done / total));
+        fileList->getTreeWidget()->setEnabled(true);
         for (auto loader : loaders)
             if (loader->isFinished()) {
+                _logger->consoleLog(loader->getFileName() + " upload is finished.");
                 loader->exit();
                 delete dynamic_cast<Uploader*>(loader);
             }
 
-        uploadData.clear();
         loaders.clear();
     }
     uploadMutex.unlock();
+}
+
+QMutex MainWindow::downloadMutex;
+
+void MainWindow::downloadProgressBarSlot([[maybe_unused]]int id, qint64 done, qint64 total)
+{
+    ui->downloadProgressBar->setValue(static_cast<int>(100*done / total));
+    if (done == total) {
+        serverConn->getClient()->cd(path);
+        fileList->getTreeWidget()->setEnabled(true);
+        for (auto loader : loaders)
+            if (loader->isFinished()) {
+                auto name = loader->getFileName();
+                if (name.contains("/"))
+                    name = name.remove(0, 1);
+                _logger->consoleLog(name + " dowload is finished.");
+                loader->exit();
+                delete dynamic_cast<Downloader*>(loader);
+            }
+        loaders.clear();
+    }
+    downloadMutex.unlock();
+}
+
+void MainWindow::uploadErrorHandler()
+{
+    serverConn->getClient()->rawCommand("PWD");
+    for (auto loader : loaders)
+        if (loader->isFinished()) {
+            loader->exit();
+            delete dynamic_cast<Uploader*>(loader);
+        }
+
+    loaders.clear();
+    fileList->getTreeWidget()->setEnabled(true);
+}
+
+void MainWindow::downloadErrorHandler()
+{
+    for (auto loader : loaders)
+        if (loader->isFinished()) {
+            loader->exit();
+            delete dynamic_cast<Downloader*>(loader);
+        }
+    loaders.clear();
+    fileList->getTreeWidget()->setEnabled(true);
+}
+
+
+void MainWindow::on_downloadCancel_clicked()
+{
+    if(serverConn->getClient()->hasPendingCommands())
+        serverConn->getClient()->clearPendingCommands();
+
+    serverConn->getClient()->abort();
+
+    ui->downloadProgressBar->setValue(0);
+    loaders.clear();
+
+    QDir dir;
+    QString downloadsFolder = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    const auto fileNames = ui->downloadFileInput->text().split(";");
+
+    for(auto fileName : fileNames)
+    {
+        dir.remove(downloadsFolder + "/" + fileName);
+        _logger->consoleLog(fileName + ": Download canceled.");
+    }
+
+    serverConn->getClient()->disconnect();
+    serverConn->relogIn();
+
+    ui->downloadCancel->setEnabled(false);
+}
+
+
+
+void MainWindow::on_searchButton_clicked()
+{
+    if (nullptr == serverConn){
+        _logger->consoleLog("You must be connected.");
+        return;
+    } else if (!serverConn->isLogged()) {
+        Logger::showMessageBox("Alert", "You are not logged.", QMessageBox::Critical);
+        return;
+    }
+    SearchDialog s(this);
+    s.exec();
+}
+
+void MainWindow::pwdHandler([[maybe_unused]]int replyCode, [[maybe_unused]]const QString& detail)
+{
+    // qDebug() << "-----------------------";
+    // qDebug() << detail;
+    // qDebug() << "-----------------------";
+
 }

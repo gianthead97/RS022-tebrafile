@@ -19,12 +19,17 @@ ServerConnection::ServerConnection(QObject* window, const QUrl& url, const QShar
 void ServerConnection::connectToServer()
 {
     _connectionId = _client->connectToHost(_hostURL.host(), static_cast<quint16>(_hostURL.port(21)));
-    QObject::connect(_client.get(), &QFtp::commandFinished, this, &ServerConnection::finishedHandler);
+    QObject::connect(_client.data(), &QFtp::commandFinished, this, &ServerConnection::finishedHandler);
 }
 
 QSharedPointer<QFtp> ServerConnection::getClient() const
 {
     return _client;
+}
+
+QSharedPointer<Logger> ServerConnection::getLogger() const
+{
+    return _loger;
 }
 
 bool ServerConnection::isLogged() const { return _logged; }
@@ -40,6 +45,17 @@ void ServerConnection::showLoginDialog()
     }
 }
 
+
+QString ServerConnection::getUsername() const
+{
+    return _username;
+}
+
+
+QString ServerConnection::getPasswd() const
+{
+    return _password;
+}
 
 
 //Slots
@@ -61,13 +77,45 @@ void ServerConnection::logIn(InputDialog* diag)
 {
     QStringList credentials = InputDialog::getStrings(diag);
     _loginId = _client->login(credentials.at(0), credentials.at(1));
-    QObject::connect(_client.get(), &QFtp::commandFinished, this, &ServerConnection::loginHandler);
+
+    _username = credentials.at(0);
+    _password = credentials.at(1);
+
+    _diag = QSharedPointer<InputDialog>(diag);
+    QObject::connect(_client.data(), &QFtp::commandFinished, this, &ServerConnection::loginHandler);
 }
 
-void ServerConnection::loginHandler(int id, bool error)
+void ServerConnection::relogIn()
+{
+
+        _loginId = _client->login(_username, _password);
+        QObject::connect(_client.data(), &QFtp::commandFinished, this, &ServerConnection::reloginHandler);
+}
+
+
+
+void ServerConnection::loginHandler(int id, [[maybe_unused]]bool error)
 {
     if (_client->state() == QFtp::LoggedIn and _loginId == id) {
         _logged = true;
-        _loger->consoleLog("You are loggedIn");
+        _loger->consoleLog("You are logged in");
+        emit connectionEstablished(_client);
     }
+}
+
+void ServerConnection::reloginHandler(int id, [[maybe_unused]]bool error)
+{
+    if (_client->state() == QFtp::LoggedIn and _loginId == id) {
+        _logged = true;
+        _loger->consoleLog("Abort success");
+        emit connectionEstablished(_client);
+    }
+}
+
+QSharedPointer<InputDialog> ServerConnection::getDiag() const{
+    return _diag;
+}
+
+void ServerConnection::setLogged(bool state) {
+    _logged = state;
 }

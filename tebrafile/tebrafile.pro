@@ -2,7 +2,7 @@ QT       += core gui network ftp
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-CONFIG += c++14
+CONFIG += c++17
 
 # The following define makes your compiler emit warnings if you use
 # any Qt feature that has been marked deprecated (the exact warnings
@@ -17,21 +17,28 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     inputDialog.cpp \
+    listFiles.cpp \
     loader.cpp \
     logger.cpp \
     main.cpp \
     mainwindow.cpp \
+    search.cpp \
+    searchdialog.cpp \
     serverconnection.cpp
 
 HEADERS += \
     inputDialog.h \
+    listFiles.h \
     loader.h \
     logger.h \
     mainwindow.h \
+    search.h \
+    searchdialog.h \
     serverconnection.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    searchdialog.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
